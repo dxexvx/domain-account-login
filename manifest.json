@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "도메인 계정 로그인",
+  "version": "1.0.0",
+  "description": "허용한 사이트의 로그인 화면에서 별칭 버튼으로 저장한 계정을 선택합니다.",
+  "minimum_chrome_version": "120",
+  "permissions": ["storage", "scripting", "activeTab"],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "background": {"service_worker": "background.js", "type": "module"},
+  "action": {"default_title": "도메인 계정 로그인 · 설정 열기"},
+  "options_page": "options.html",
+  "incognito": "spanning",
+  "content_security_policy": {"extension_pages": "script-src 'self'; object-src 'none'"}
+}
