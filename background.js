@@ -1,5 +1,6 @@
 import {originOf,validateSite,metadata,derive,salt,exportKey,importKey,encrypt,decrypt} from './core.js';
 import {fillAndSubmit} from './login.js';
+import {mapLogin} from './mapping.js';
 const SESSION_MS=30*60*1000;
 let queue=Promise.resolve();
 const serialized = fn => {const task=queue.then(fn,fn);queue=task.catch(()=>{});return task;};
@@ -10,7 +11,7 @@ async function initialize() {
 const ready=initialize();
 async function key() {
   const {unlock}=await chrome.storage.session.get('unlock');
-  if(!unlock || unlock.expires<Date.now()) {await chrome.storage.session.clear();throw new Error('보관함이 잠겨 있습니다. 확장프로그램 설정에서 잠금을 해제하세요.');}
+  if(!unlock || unlock.expires<Date.now()) {await chrome.storage.session.remove('unlock');throw new Error('보관함이 잠겨 있습니다. 확장프로그램 설정에서 잠금을 해제하세요.');}
   return importKey(unlock.key);
 }
 async function data() {const {vault}=await chrome.storage.local.get('vault');if(!vault) throw new Error('먼저 설정에서 보관함을 만드세요.');return decrypt(vault,await key());}
@@ -48,6 +49,22 @@ async function submit(tabId,site,accountId) {
 }
 async function handle(message,sender) {
   await ready;
+  if(message.type==='MAP_LOGIN') {
+    if(sender.id!==chrome.runtime.id||sender.url!==chrome.runtime.getURL('popup.html'))throw new Error('확장 팝업에서 자동 매핑을 시작하세요.');
+    if(!Number.isSafeInteger(message.tabId))throw new Error('대상 탭을 찾을 수 없습니다.');
+    const url=new URL(message.url),origin=originOf(url.href);
+    if(url.username||url.password)throw new Error('인증정보가 포함된 주소는 사용할 수 없습니다.');
+    const before=await chrome.tabs.get(message.tabId);
+    if(before.url!==url.href)throw new Error('페이지가 이동했습니다. 로그인 화면에서 팝업을 다시 여세요.');
+    if(!(await chrome.permissions.contains({origins:[origin+'/*']})))throw new Error('사이트 접근 권한을 허용하세요.');
+    const results=await chrome.scripting.executeScript({target:{tabId:message.tabId},func:mapLogin,args:[origin]});
+    const mapped=results[0]?.result;
+    if(!mapped?.selectors?.password)throw new Error('로그인 비밀번호 입력란을 하나로 찾을 수 없습니다. 로그인 화면을 확인하세요.');
+    if((await chrome.tabs.get(message.tabId)).url!==url.href)throw new Error('매핑 도중 페이지가 이동했습니다. 다시 시작하세요.');
+    const site=validateSite({origin,loginUrl:url.href,selectors:mapped.selectors});
+    await chrome.storage.session.set({mappingDraft:{site,missing:mapped.missing,expires:Date.now()+10*60*1000}});
+    return {site,missing:mapped.missing};
+  }
   if(message.type==='PAGE') {
     const origin=pageOrigin(sender);
     try {const site=await pageSite(sender);return {site:metadata(site)};} catch {return {locked:true,origin};}
@@ -87,6 +104,21 @@ async function handle(message,sender) {
   }
   if(message.type==='OPEN') return chrome.runtime.openOptionsPage();
   admin(sender);
+  if(message.type==='DRAFT') {
+    const {mappingDraft:draft}=await chrome.storage.session.get('mappingDraft');
+    return {draft:draft?.expires>Date.now()?draft:null};
+  }
+  if(message.type==='APPLY_DRAFT') {
+    const {mappingDraft:draft}=await chrome.storage.session.get('mappingDraft');
+    if(!draft||draft.expires<Date.now())return {};
+    const d=await data(),site=validateSite(draft.site),old=d.sites.find(x=>x.origin===site.origin);
+    if(!(await chrome.permissions.contains({origins:[site.origin+'/*']})))throw new Error('사이트 접근 권한을 다시 허용하세요.');
+    site.id=old?.id||site.id;site.accounts=old?.accounts||[];
+    // Keep an existing explicit selection when automatic detection is ambiguous.
+    for(const field of draft.missing)site.selectors[field]=old?.selectors[field]||'';
+    d.sites=d.sites.filter(x=>x.origin!==site.origin);d.sites.push(site);await save(d);await synchronize(d.sites);
+    await chrome.storage.session.remove('mappingDraft');return {id:site.id,missing:draft.missing};
+  }
   if(message.type==='STATUS') {
     const {vault}=await chrome.storage.local.get('vault');
     try {await key();return {exists:!!vault,unlocked:true};} catch {return {exists:!!vault,unlocked:false};}
@@ -139,5 +171,4 @@ async function handle(message,sender) {
   throw new Error('지원하지 않는 요청입니다.');
 }
 chrome.runtime.onMessage.addListener((message,sender,respond)=>{serialized(()=>handle(message,sender)).then(value=>respond({ok:true,...value}),error=>respond({ok:false,error:error.message}));return true;});
-chrome.action.onClicked.addListener(()=>chrome.runtime.openOptionsPage());
 chrome.tabs.onRemoved.addListener(tabId=>chrome.storage.session.remove([`pending-${tabId}`,`pick-${tabId}`]));

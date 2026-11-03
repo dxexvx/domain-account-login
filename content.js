@@ -9,13 +9,21 @@
     host.style.cssText='all:initial!important;position:fixed!important;bottom:0!important;left:0!important;width:100%!important;z-index:2147483647!important;';
     root=host.attachShadow({mode:'open'});
     const style=document.createElement('style');style.textContent=`
-      :host{color-scheme:light} *{box-sizing:border-box} .bar{font:14px/1.5 system-ui,sans-serif;color:#172d39;background:#fff;border-top:1px solid #a8b8bf;padding:12px 20px max(12px,env(safe-area-inset-bottom));box-shadow:0 -3px 16px #102c3b14;display:flex;flex-wrap:wrap;gap:8px;align-items:center;max-height:38vh;overflow:auto}
-      button,select{font:inherit;min-height:40px;padding:8px 12px;border:1px solid #a8b8bf;border-radius:6px;background:#fff;color:#172d39;cursor:pointer}button.account{background:#163f43;color:#fff;border-color:#163f43}button:hover{filter:brightness(.94)}button:focus-visible,select:focus-visible{outline:3px solid #3573bc;outline-offset:2px}button:disabled{opacity:.55;cursor:wait}.status{flex-basis:100%;margin:0;color:#455b65}.label{margin-right:6px}.pick{font:16px/1.5 system-ui;padding:16px 20px;background:#163f43;color:white}.pick button{margin-left:16px}@media(max-width:600px){.bar{padding:10px;gap:6px} .label{flex-basis:100%}}
+      :host{color-scheme:light} *{box-sizing:border-box} .bar{font:14px/1.5 system-ui,sans-serif;color:#202124;background:#fff;border-top:1px solid #dadce0;padding:12px 20px max(12px,env(safe-area-inset-bottom));display:flex;flex-wrap:wrap;gap:8px;align-items:center;max-height:38vh;overflow:auto}
+      button,select{font:inherit;height:44px;padding:8px 12px;border:1px solid #dadce0;border-radius:4px;background:#fff;color:#202124;cursor:pointer}button.account{background:#185abc;color:#fff;border-color:#185abc}button:hover{filter:brightness(.94)}button:focus-visible,select:focus-visible{outline:3px solid #3573bc;outline-offset:2px}button:disabled{opacity:.55;cursor:wait}.status{flex-basis:100%;margin:0;color:#5f6368}.label{margin-right:6px}.pick{font:16px/1.5 system-ui;padding:16px 20px;background:#185abc;color:white}.pick button{margin-left:16px}@media(max-width:600px){.bar{padding:10px;gap:6px} .label{flex-basis:100%}}
     `;root.append(style);document.documentElement.append(host);
   }
   const button=(text,fn,className='')=>{const b=document.createElement('button');b.textContent=text;b.type='button';b.className=className;b.addEventListener('click',event=>{if(event.isTrusted)fn(event);});return b;};
   const visible=el=>el && el.getClientRects().length>0 && getComputedStyle(el).visibility!=='hidden';
-  function loginVisible() {try {return site && site.selectors.submit && [...document.querySelectorAll(site.selectors.submit)].some(visible);} catch {return false;}}
+  function loginVisible() {
+    try {
+      if(!site || !['username','password','submit'].every(f=>site.selectors[f]))return false;
+      const inputs=selector=>[...document.querySelectorAll(selector)].filter(el=>el instanceof HTMLInputElement && visible(el));
+      const username=inputs(site.selectors.username).some(el=>!['password','hidden','file','checkbox','radio'].includes(el.type));
+      const password=inputs(site.selectors.password).some(el=>el.type==='password');
+      return username && password && [...document.querySelectorAll(site.selectors.submit)].some(visible);
+    } catch {return false;}
+  }
   async function refresh() {
     if(picking) return;
     try {
@@ -65,7 +73,7 @@
   function target(event) {return event.target?.closest?.('input,button,[role="button"],a') || event.target;}
   function point(event) {
     const el=target(event);if(!el || el===host || el===highlight) return;
-    const r=el.getBoundingClientRect();highlight.style.cssText=`position:fixed;pointer-events:none;z-index:2147483646;box-sizing:border-box;border:3px solid #1e8a84;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;`;
+    const r=el.getBoundingClientRect();highlight.style.cssText=`position:fixed;pointer-events:none;z-index:2147483646;box-sizing:border-box;border:3px solid #1a73e8;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;`;
   }
   async function capture(event) {
     if(event.composedPath().includes(host)) return;
