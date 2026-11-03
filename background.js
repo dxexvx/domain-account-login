@@ -41,7 +41,7 @@ async function submit(tabId,site,accountId) {
   if(!account) throw new Error('계정을 찾을 수 없습니다.');
   const tab=await chrome.tabs.get(tabId);
   if(originOf(tab.url)!==site.origin) throw new Error('대상 주소가 변경되어 로그인을 중단했습니다.');
-  const result=await chrome.scripting.executeScript({target:{tabId},func:fillAndSubmit,args:[site.selectors,account.username,account.password]});
+  const result=await chrome.scripting.executeScript({target:{tabId},func:fillAndSubmit,args:[site.origin,site.selectors,account.username,account.password]});
   const outcome=result[0]?.result;
   if(!outcome?.submitted) throw new Error(outcome?.error || '로그인 실행 결과를 확인할 수 없습니다.');
   return outcome;

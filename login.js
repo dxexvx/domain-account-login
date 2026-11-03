@@ -1,6 +1,7 @@
 // Runs only in the isolated world of the authorized top-level frame.
-export async function fillAndSubmit(selectors, username, password) {
+export async function fillAndSubmit(expectedOrigin, selectors, username, password) {
  try {
+  if(location.origin!==expectedOrigin) throw new Error('대상 주소가 변경되어 로그인을 중단했습니다.');
   const visible = el => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden' && !el.disabled;
   const find = selector => {
     const list = [...document.querySelectorAll(selector)].filter(visible);
@@ -16,7 +17,7 @@ export async function fillAndSubmit(selectors, username, password) {
   }
   await new Promise(resolve=>setTimeout(resolve,120));
   // A rerender must not redirect the action to a different element.
-  if(find(selectors.username)!==id || find(selectors.password)!==pass || find(selectors.submit)!==button || id.value!==username || pass.value!==password) throw new Error('입력 후 화면이 변경되었습니다. 다시 시도하세요.');
+  if(location.origin!==expectedOrigin || find(selectors.username)!==id || find(selectors.password)!==pass || find(selectors.submit)!==button || id.value!==username || pass.value!==password) throw new Error('입력 후 화면이 변경되었습니다. 다시 시도하세요.');
   button.click();
   return {submitted:true};
  } catch(error) {return {error:error.message};}
