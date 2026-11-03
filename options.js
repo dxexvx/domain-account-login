@@ -10,6 +10,7 @@ function editAccount(a={}) {
 }
 function selectSite(id) {
   selected=id;const s=sites.find(x=>x.id===id);
+  $('account-import').hidden=!s;$('import-file').value='';
   $('site-form').reset();$('site-id').value=s?.id||'';$('origin').value=s?.origin||'';$('login-url').value=s?.loginUrl||'';
   for(const field of ['username','password','submit']) $('selector-'+field).value=s?.selectors[field]||'';
   $('site-title').textContent='로그인 화면 설정';$('domain-heading').textContent=s?new URL(s.origin).host:'도메인 추가';$('domain-description').textContent=s?'이 도메인의 계정을 관리합니다.':'로그인 화면에서 확장 아이콘 → 자동 매핑으로 시작할 수 있습니다.';$('account-count').textContent=s?String(s.accounts.length):'';const mapped=s&&['username','password','submit'].every(f=>s.selectors[f]);$('mapping-status').textContent=mapped?'로그인 요소 3개 지정됨':s?'로그인 요소를 지정하세요':'주소와 로그인 요소를 지정하세요';$('login-settings').open=!s||!mapped;$('delete-site').hidden=!s;$('account-section').hidden=!s;
@@ -53,6 +54,18 @@ $('site-form').onsubmit=e=>{
 $('delete-site').onclick=()=>run(async()=>{if(!confirm('이 도메인과 등록된 계정을 모두 삭제할까요?'))return;await ask({type:'DELETE_SITE',id:selected});await load(null);notice('도메인과 계정을 삭제했습니다.');});
 $('account-form').onsubmit=e=>{e.preventDefault();run(async()=>{await ask({type:'SAVE_ACCOUNT',siteId:selected,account:{id:$('account-id').value,alias:$('alias').value,username:$('username').value,password:$('password').value}});$('password').value='';await load();notice('계정을 저장했습니다.');});};
 $('new-account').onclick=()=>{editAccount();$('alias').focus();};
+$('begin-import').onclick=()=>run(async()=>{
+  const {request}=await ask({type:'BEGIN_IMPORT',siteId:selected});
+  const url=URL.createObjectURL(new Blob([JSON.stringify(request)],{type:'application/json'}));
+  const a=document.createElement('a');a.href=url;a.download='account-import-request.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  notice('공개키 요청을 저장했습니다. 전용 도구가 만든 암호화 파일을 선택하세요.');
+});
+$('import-file').onchange=()=>run(async()=>{
+  const file=$('import-file').files[0];$('import-file').value='';if(!file)return;
+  if(file.size>260000)throw new Error('가져오기 파일이 너무 큽니다.');
+  let envelope;try{envelope=JSON.parse(await file.text());}catch{throw new Error('JSON 형식의 암호화 파일을 선택하세요.');}
+  const {count}=await ask({type:'IMPORT_ACCOUNTS',siteId:selected,envelope});await load();notice(`${count}개 계정을 가져왔습니다.`);
+});
 for(const b of document.querySelectorAll('[data-pick]')) b.onclick=()=>run(async()=>{pickerOutstanding=true;await ask({type:'PICK',siteId:selected,field:b.dataset.pick});notice('로그인 페이지에서 해당 요소를 클릭하세요. 돌아오면 선택 결과를 불러옵니다.');});
 window.addEventListener('focus',()=>{if(refreshing)return;refreshing=true;run(async()=>{try{const {draft}=await ask({type:'DRAFT'});if(draft)await status();else if(pickerOutstanding&&!$('workspace').hidden){pickerOutstanding=false;await load();}}finally{refreshing=false;}});});
 run(status);

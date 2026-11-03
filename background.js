@@ -1,6 +1,7 @@
 import {originOf,validateSite,metadata,derive,salt,exportKey,importKey,encrypt,decrypt} from './core.js';
 import {fillAndSubmit} from './login.js';
 import {mapLogin} from './mapping.js';
+import {createTransfer,openTransfer} from './transfer.js';
 const SESSION_MS=30*60*1000;
 let queue=Promise.resolve();
 const serialized = fn => {const task=queue.then(fn,fn);queue=task.catch(()=>{});return task;};
@@ -11,7 +12,7 @@ async function initialize() {
 const ready=initialize();
 async function key() {
   const {unlock}=await chrome.storage.session.get('unlock');
-  if(!unlock || unlock.expires<Date.now()) {await chrome.storage.session.remove('unlock');throw new Error('보관함이 잠겨 있습니다. 확장프로그램 설정에서 잠금을 해제하세요.');}
+  if(!unlock || unlock.expires<Date.now()) {await chrome.storage.session.remove(['unlock','accountImport']);throw new Error('보관함이 잠겨 있습니다. 확장프로그램 설정에서 잠금을 해제하세요.');}
   return importKey(unlock.key);
 }
 async function data() {const {vault}=await chrome.storage.local.get('vault');if(!vault) throw new Error('먼저 설정에서 보관함을 만드세요.');return decrypt(vault,await key());}
@@ -49,6 +50,8 @@ async function submit(tabId,site,accountId) {
 }
 async function handle(message,sender) {
   await ready;
+  const {accountImport:expiredImport}=await chrome.storage.session.get('accountImport');
+  if(expiredImport&&expiredImport.request.expires<=Date.now())await chrome.storage.session.remove('accountImport');
   if(message.type==='MAP_LOGIN') {
     if(sender.id!==chrome.runtime.id||sender.url!==chrome.runtime.getURL('popup.html'))throw new Error('확장 팝업에서 자동 매핑을 시작하세요.');
     if(!Number.isSafeInteger(message.tabId))throw new Error('대상 탭을 찾을 수 없습니다.');
@@ -104,6 +107,22 @@ async function handle(message,sender) {
   }
   if(message.type==='OPEN') return chrome.runtime.openOptionsPage();
   admin(sender);
+  if(message.type==='BEGIN_IMPORT') {
+    const d=await data(),site=d.sites.find(x=>x.id===message.siteId);
+    if(!site)throw new Error('도메인을 먼저 저장하세요.');
+    const pending=await createTransfer(site.origin,site.id);
+    await chrome.storage.session.set({accountImport:pending});return {request:pending.request};
+  }
+  if(message.type==='IMPORT_ACCOUNTS') {
+    const d=await data(),{accountImport:pending}=await chrome.storage.session.get('accountImport');
+    // Consume before decrypting: a request accepts exactly one attempt.
+    await chrome.storage.session.remove('accountImport');
+    const site=d.sites.find(x=>x.id===pending?.siteId&&x.id===message.siteId&&x.origin===pending.request.origin);
+    if(!site)throw new Error('가져오기 요청을 새로 만드세요.');
+    const accounts=await openTransfer(message.envelope,pending,site.accounts);
+    site.accounts.push(...accounts.map(a=>({...a,id:crypto.randomUUID()})));
+    await save(d);return {count:accounts.length};
+  }
   if(message.type==='DRAFT') {
     const {mappingDraft:draft}=await chrome.storage.session.get('mappingDraft');
     return {draft:draft?.expires>Date.now()?draft:null};
