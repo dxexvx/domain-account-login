@@ -1,16 +1,13 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>도메인 계정 로그인</title><link rel="stylesheet" href="options.css"></head>
 <body>
-<header class="app-header"><h1>도메인 계정 로그인</h1><button id="lock" hidden>보관함 잠그기</button></header>
+<header class="app-header"><h1>도메인 계정 로그인</h1></header>
 <main><p id="notice" role="status" aria-live="polite"></p><p id="setup-context" class="context" hidden></p>
-<section id="vault" aria-labelledby="vault-title"><h2 id="vault-title">계정보관함 열기</h2><p class="intro">저장한 계정을 사용하려면 보관함을 열어주세요.</p>
-<form id="unlock-form"><label>마스터 비밀번호<input id="master" type="password" minlength="10" required autocomplete="current-password" aria-describedby="master-help"></label><button class="primary" id="unlock">잠금 해제</button></form>
-<p class="help" id="master-help">10자 이상 · 잠금 해제는 30분 동안 유지됩니다.</p><p class="vault-note">계정 비밀번호는 이 브라우저에 암호화해 저장합니다.<br>마스터 비밀번호는 복구할 수 없습니다.</p></section>
 <div id="workspace" hidden><div class="columns">
 <aside><div class="section-head"><h2>도메인</h2><button id="new-site" class="quiet">추가</button></div><nav id="sites" aria-label="허용 도메인"></nav><p class="help">다른 도메인의 계정은 분리해 보관합니다.</p></aside>
 <div class="site-content"><div class="site-heading"><div><h2 id="domain-heading">도메인 추가</h2><p id="domain-description" class="help">로그인 화면에서 확장 아이콘 → 자동 매핑으로 시작할 수 있습니다.</p></div></div>
 <section id="account-section" hidden aria-labelledby="accounts-heading"><div class="section-head"><h2 id="accounts-heading">저장한 계정 <span id="account-count"></span></h2><button id="new-account">계정 추가</button></div>
-<div class="account-layout"><div><div class="list-label"><span>별칭 / 로그인 아이디</span><span>관리</span></div><div id="accounts"></div><p class="help account-note">로그인 화면 하단에서 별칭을 누르면 해당 계정으로 로그인합니다.</p></div>
+<div class="account-layout"><div><div class="list-label"><span>별칭 / 로그인 아이디</span><span>관리</span></div><div id="accounts"></div><p class="help account-note">사이트의 플로팅 계정 버튼을 누르면 현재 탭에서 로그인합니다.</p></div>
 <form id="account-form"><h3 id="account-title">계정 추가</h3><input id="account-id" type="hidden"><label>별칭<input id="alias" required maxlength="80" placeholder="예: 관리자"></label><label>로그인 아이디<input id="username" required maxlength="500" autocomplete="off"></label><label>비밀번호<input id="password" type="password" maxlength="1000" autocomplete="new-password" aria-describedby="password-help"></label><p id="password-help" class="help">수정할 때 비워 두면 기존 비밀번호를 유지합니다.</p><button class="primary">계정 저장</button></form></div></section>
 <details id="account-import" hidden><summary>암호화된 계정 가져오기</summary><div><p class="help">전용 도구로 준비한 계정을 가져옵니다. 이 도메인에서 10분 동안 한 번 사용할 수 있으며, 기존 계정은 덮어쓰지 않습니다.</p><button id="begin-import" type="button">가져오기 요청 저장</button><label>암호화된 계정 파일<input id="import-file" type="file" accept="application/json,.json"></label></div></details>
 <details id="login-settings" open><summary><span id="site-title">로그인 화면 설정</span><span id="mapping-status">주소와 로그인 요소를 지정하세요</span></summary>
@@ -19,7 +16,8 @@
 <div class="selector-row"><label>아이디 입력란<input id="selector-username" placeholder="#username"></label><button type="button" data-pick="username">화면에서 선택</button></div>
 <div class="selector-row"><label>비밀번호 입력란<input id="selector-password" placeholder="#password"></label><button type="button" data-pick="password">화면에서 선택</button></div>
 <div class="selector-row"><label>로그인 버튼<input id="selector-submit" placeholder="button[type=submit]"></label><button type="button" data-pick="submit">화면에서 선택</button></div>
-<p class="help">아이디·비밀번호 입력란과 지정한 로그인 버튼이 보이면 계정 버튼을 표시합니다. 자동 매핑이 어려우면 요소를 직접 선택하거나 CSS 선택자를 입력하세요.</p>
+<div class="selector-row"><label>로그아웃 버튼 · 선택 사항<input id="selector-logout" placeholder="비우면 로그아웃 문구로 자동 감지"></label><button type="button" data-pick="logout">화면에서 선택</button></div>
+<p class="help">허용 도메인의 모든 화면에 계정 버튼을 표시하고, 로그인할 때 지정한 세 요소를 사용합니다. 계정 전환은 사이트의 로그아웃 버튼을 누른 뒤 로그인하고 원래 주소로 돌아옵니다. 자동 매핑이 어려우면 요소를 직접 선택하거나 CSS 선택자를 입력하세요.</p>
 <div class="actions"><button class="primary">도메인 저장 · 접근 허용</button><button type="button" id="delete-site" class="danger" hidden>도메인 삭제</button></div></form></details>
-<details class="session-help"><summary>세션과 지원 범위</summary><div><p>기본값은 새 시크릿 창입니다. 확장 관리에서 ‘시크릿 모드에서 허용’을 켜주세요. 이미 시크릿 창이 열려 있거나 사용할 수 없으면, 안내 후 ‘현재 창’으로 로그인할 수 있습니다.</p><p>같은 프로필의 일반 창끼리, 시크릿 창끼리는 로그인 상태를 공유합니다. 계정별 동시 로그인은 별도 Chrome 프로필을 사용하세요.</p><p>OTP·CAPTCHA·SSO 추가 인증은 사이트에서 직접 완료해주세요. iframe·닫힌 Shadow DOM·단계가 나뉜 로그인은 지원하지 않습니다.</p></div></details>
+<details class="session-help"><summary>세션과 지원 범위</summary><div><p>현재 탭에서 로그인합니다. 업무 화면에서는 저장된 로그인 주소로 이동한 뒤 로그인합니다.</p><p>같은 Chrome 프로필의 탭과 창은 로그인 상태를 공유합니다. 계정별 동시 로그인은 별도 Chrome 프로필을 사용하세요.</p><p>OTP·CAPTCHA·SSO 추가 인증은 사이트에서 직접 완료해주세요. iframe·닫힌 Shadow DOM·단계가 나뉜 로그인은 지원하지 않습니다.</p></div></details>
 </div></div></div></main><script type="module" src="options.js"></script></body></html>

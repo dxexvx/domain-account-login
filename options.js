@@ -1,4 +1,5 @@
 import {originOf} from './core.js';
+import {browserKey} from './vault.js';
 const $=id=>document.getElementById(id);
 let sites=[],selected=null,refreshing=false,pickerOutstanding=false;
 async function ask(message) {const r=await chrome.runtime.sendMessage(message);if(!r?.ok) throw new Error(r?.error||'확장프로그램을 다시 열어주세요.');return r;}
@@ -12,7 +13,7 @@ function selectSite(id) {
   selected=id;const s=sites.find(x=>x.id===id);
   $('account-import').hidden=!s;$('import-file').value='';
   $('site-form').reset();$('site-id').value=s?.id||'';$('origin').value=s?.origin||'';$('login-url').value=s?.loginUrl||'';
-  for(const field of ['username','password','submit']) $('selector-'+field).value=s?.selectors[field]||'';
+  for(const field of ['username','password','submit','logout']) $('selector-'+field).value=s?.selectors[field]||'';
   $('site-title').textContent='로그인 화면 설정';$('domain-heading').textContent=s?new URL(s.origin).host:'도메인 추가';$('domain-description').textContent=s?'이 도메인의 계정을 관리합니다.':'로그인 화면에서 확장 아이콘 → 자동 매핑으로 시작할 수 있습니다.';$('account-count').textContent=s?String(s.accounts.length):'';const mapped=s&&['username','password','submit'].every(f=>s.selectors[f]);$('mapping-status').textContent=mapped?'로그인 요소 3개 지정됨':s?'로그인 요소를 지정하세요':'주소와 로그인 요소를 지정하세요';$('login-settings').open=!s||!mapped;$('delete-site').hidden=!s;$('account-section').hidden=!s;
   document.querySelectorAll('[data-pick]').forEach(b=>b.disabled=!s);
   $('accounts').replaceChildren();
@@ -31,14 +32,15 @@ async function load(id=selected) {
   selectSite(id && sites.some(x=>x.id===id)?id:sites[0]?.id||null);
 }
 async function status() {
-  const r=await ask({type:'STATUS'});$('vault').hidden=r.unlocked;$('workspace').hidden=!r.unlocked;$('lock').hidden=!r.unlocked;
+  const r=await ask({type:'STATUS'});
+  // Prepare an open legacy vault before extension reload clears session storage.
+  if('unlocked' in r){if(!r.unlocked)throw new Error('기존 계정을 변환하려면 기존 보관함을 먼저 열어주세요.');await browserKey();}
+  $('workspace').hidden=false;
   const {draft}=await ask({type:'DRAFT'});$('setup-context').hidden=!draft;
   if(draft)$('setup-context').textContent=`${draft.site.origin} · 현재 로그인 화면을 매핑했습니다. 보관함을 열면 이 도메인으로 시작합니다.`;
-  $('vault-title').textContent=r.exists?'계정보관함 열기':'계정보관함 만들기';document.querySelector('#vault .intro').textContent=r.exists?'저장한 계정을 사용하려면 보관함을 열어주세요.':'계정을 안전하게 보관할 마스터 비밀번호를 정해주세요.';$('unlock').textContent=r.exists?'잠금 해제':'보관함 만들기';$('master').autocomplete=r.exists?'current-password':'new-password';
-  if(r.unlocked){const applied=await ask({type:'APPLY_DRAFT'});await load(applied.id);if(applied.id){$('setup-context').hidden=true;notice(applied.missing.length?'도메인을 준비했습니다. 찾지 못한 요소는 화면에서 직접 선택하세요.':'현재 로그인 주소와 세 요소를 저장했습니다. 계정을 추가하세요.');}}
+  const applied=await ask({type:'APPLY_DRAFT'});await load(applied.id);
+  if(applied.id){$('setup-context').hidden=true;notice(applied.missing.length?'도메인을 준비했습니다. 찾지 못한 요소는 화면에서 직접 선택하세요.':'현재 로그인 주소와 세 요소를 저장했습니다. 계정을 추가하세요.');}
 }
-$('unlock-form').onsubmit=e=>{e.preventDefault();run(async()=>{const password=$('master').value;$('master').value='';$('unlock').disabled=true;try{await ask({type:'UNLOCK',password});await status();notice('보관함을 열었습니다. 30분 동안 사용할 수 있습니다.');}finally{$('unlock').disabled=false;}});};
-$('lock').onclick=()=>run(async()=>{await ask({type:'LOCK'});sites=[];selected=null;$('accounts').replaceChildren();$('sites').replaceChildren();$('account-form').reset();await status();notice('보관함을 잠갔습니다.');});
 $('new-site').onclick=()=>{selectSite(null);$('origin').focus();};
 $('site-form').onsubmit=e=>{
   e.preventDefault();
@@ -46,7 +48,7 @@ $('site-form').onsubmit=e=>{
   let origin;try{origin=originOf($('origin').value.trim());}catch(error){notice(error.message,true);return;}
   const site={id:$('site-id').value,origin,loginUrl:$('login-url').value.trim()||origin,selectors:{}};
   try{if(new URL(site.loginUrl).origin!==origin)throw new Error('로그인 주소와 허용 도메인이 같아야 합니다.');
-    for(const f of ['username','password','submit']){site.selectors[f]=$('selector-'+f).value.trim();if(site.selectors[f])document.querySelector(site.selectors[f]);}
+    for(const f of ['username','password','submit','logout']){site.selectors[f]=$('selector-'+f).value.trim();if(site.selectors[f])document.querySelector(site.selectors[f]);}
   }catch(error){notice(error.message,true);return;}
   const permission=chrome.permissions.request({origins:[`${origin}/*`]});
   run(async()=>{if(!(await permission))throw new Error('사이트 접근 권한을 허용해야 사용할 수 있습니다.');const r=await ask({type:'SAVE_SITE',site});await load(r.id);notice('도메인을 저장했습니다. 로그인 요소와 계정을 등록하세요.');});
