@@ -4,6 +4,7 @@ import {sessionAction} from './session.js';
 import {browserKey} from './vault.js';
 import {mapLogin} from './mapping.js';
 import {createTransfer,openTransfer} from './transfer.js';
+import {sealBackup,openBackup,mergeBackup} from './backup.js';
 let queue=Promise.resolve();
 const serialized = fn => {const task=queue.then(fn,fn);queue=task.catch(()=>{});return task;};
 async function initialize() {
@@ -146,6 +147,22 @@ async function handle(message,sender) {
   }
   if(message.type==='OPEN') return chrome.runtime.openOptionsPage();
   admin(sender);
+  if(message.type==='EXPORT_BACKUP') {
+    const d=await data(),sites=message.siteId?d.sites.filter(s=>s.id===message.siteId):d.sites;
+    if(!sites.length)throw new Error('내보낼 도메인이 없습니다. 도메인과 계정을 먼저 등록하세요.');
+    return {envelope:await sealBackup(sites,message.password)};
+  }
+  if(message.type==='PREVIEW_BACKUP'||message.type==='IMPORT_BACKUP') {
+    const imported=await openBackup(message.envelope,message.password),d=await data();
+    const merged=mergeBackup(d.sites,imported),requiredOrigins=[];
+    for(const site of imported)if(!(await chrome.permissions.contains({origins:[site.origin+'/*']})))requiredOrigins.push(site.origin+'/*');
+    const summary={domainsAdded:merged.domainsAdded,accountsAdded:merged.accountsAdded,accountsSkipped:merged.accountsSkipped,domains:imported.map(s=>({origin:s.origin,accounts:s.accounts.length})),requiredOrigins};
+    if(message.type==='PREVIEW_BACKUP')return summary;
+    if(requiredOrigins.length)throw new Error('가져올 도메인의 접근 권한을 허용하세요. 기존 계정은 변경하지 않았습니다.');
+    // Recompute against current data inside the serialized handler; never restore a stale preview.
+    if(merged.domainsAdded||merged.accountsAdded){await save({sites:merged.sites});await synchronize(merged.sites);}
+    return summary;
+  }
   if(message.type==='BEGIN_IMPORT') {
     const d=await data(),site=d.sites.find(x=>x.id===message.siteId);
     if(!site)throw new Error('도메인을 먼저 저장하세요.');

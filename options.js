@@ -1,7 +1,8 @@
 import {originOf} from './core.js';
 import {browserKey} from './vault.js';
+import {MAX_BACKUP_BYTES} from './backup.js';
 const $=id=>document.getElementById(id);
-let sites=[],selected=null,refreshing=false,pickerOutstanding=false;
+let sites=[],selected=null,refreshing=false,pickerOutstanding=false,pendingBackup=null,backupBusy=false;
 async function ask(message) {const r=await chrome.runtime.sendMessage(message);if(!r?.ok) throw new Error(r?.error||'확장프로그램을 다시 열어주세요.');return r;}
 function notice(text,error=false){$('notice').textContent=text;$('notice').classList.toggle('error',error);}
 async function run(fn){try{await fn();}catch(e){notice(e.message,true);}}
@@ -11,6 +12,8 @@ function editAccount(a={}) {
 }
 function selectSite(id) {
   selected=id;const s=sites.find(x=>x.id===id);
+  $('backup-scope').querySelector('[value="current"]').disabled=!s;
+  if(!s)$('backup-scope').value='all';$('export-backup').disabled=!sites.length;
   $('account-import').hidden=!s;$('import-file').value='';
   $('site-form').reset();$('site-id').value=s?.id||'';$('origin').value=s?.origin||'';$('login-url').value=s?.loginUrl||'';
   for(const field of ['username','password','submit','logout']) $('selector-'+field).value=s?.selectors[field]||'';
@@ -56,6 +59,50 @@ $('site-form').onsubmit=e=>{
 $('delete-site').onclick=()=>run(async()=>{if(!confirm('이 도메인과 등록된 계정을 모두 삭제할까요?'))return;await ask({type:'DELETE_SITE',id:selected});await load(null);notice('도메인과 계정을 삭제했습니다.');});
 $('account-form').onsubmit=e=>{e.preventDefault();run(async()=>{await ask({type:'SAVE_ACCOUNT',siteId:selected,account:{id:$('account-id').value,alias:$('alias').value,username:$('username').value,password:$('password').value}});$('password').value='';await load();notice('계정을 저장했습니다.');});};
 $('new-account').onclick=()=>{editAccount();$('alias').focus();};
+function resetBackup(){pendingBackup=null;$('backup-preview').hidden=true;$('import-backup').disabled=true;}
+function backupTask(fn){return run(async()=>{
+ if(backupBusy)return;backupBusy=true;$('backup-tools').setAttribute('aria-busy','true');
+ const controls=[...$('backup-tools').querySelectorAll('input,select,button')];const disabled=controls.map(c=>c.disabled);controls.forEach(c=>c.disabled=true);
+ try{await fn();}finally{backupBusy=false;$('backup-tools').removeAttribute('aria-busy');controls.forEach((c,i)=>c.disabled=disabled[i]);$('import-backup').disabled=!pendingBackup;}
+});}
+$('backup-export').onsubmit=e=>{
+ e.preventDefault();if($('export-password').value!==$('export-confirm').value){notice('백업 암호 확인이 일치하지 않습니다.',true);return;}
+ const password=$('export-password').value,siteId=$('backup-scope').value==='current'?selected:null;
+ backupTask(async()=>{
+  try{
+   const {envelope}=await ask({type:'EXPORT_BACKUP',siteId,password});
+   const url=URL.createObjectURL(new Blob([JSON.stringify(envelope)],{type:'application/json'}));
+   const a=document.createElement('a');a.href=url;a.download=`domain-accounts-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+   notice('암호화 백업 파일을 내보냈습니다. 다른 프로필에서도 같은 백업 암호로 가져올 수 있습니다.');
+  }finally{$('export-password').value='';$('export-confirm').value='';}
+ });
+};
+$('backup-file').onchange=resetBackup;$('import-password').oninput=resetBackup;
+$('backup-import').onsubmit=e=>{e.preventDefault();backupTask(async()=>{
+ resetBackup();const file=$('backup-file').files[0];if(!file)throw new Error('백업 파일을 선택하세요.');
+ if(file.size>MAX_BACKUP_BYTES)throw new Error('백업 파일은 5MB 이하로 선택하세요.');
+ let envelope;try{envelope=JSON.parse(await file.text());}catch{throw new Error('JSON 형식의 계정 백업 파일을 선택하세요.');}
+ const password=$('import-password').value;
+ try{
+  const r=await ask({type:'PREVIEW_BACKUP',envelope,password});
+  $('backup-summary').textContent=`도메인 ${r.domains.length}개 · 새 도메인 ${r.domainsAdded}개 · 추가할 계정 ${r.accountsAdded}개 · 중복 ${r.accountsSkipped}개`;
+  $('backup-domains').replaceChildren(...r.domains.map(s=>{const li=document.createElement('li');li.textContent=`${s.origin} · 계정 ${s.accounts}개`;return li;}));
+  pendingBackup={envelope,password,requiredOrigins:r.requiredOrigins};$('backup-preview').hidden=false;notice('가져올 내용을 확인한 뒤 가져오기를 누르세요.');
+ }finally{$('import-password').value='';}
+});};
+$('cancel-backup').onclick=()=>{resetBackup();$('backup-import').reset();notice('가져오기를 취소했습니다.');};
+$('import-backup').onclick=()=>{
+ if(!pendingBackup||backupBusy)return;const pending=pendingBackup;
+ // Optional host permissions must be requested synchronously from this click.
+ const permission=pending.requiredOrigins.length?chrome.permissions.request({origins:pending.requiredOrigins}):Promise.resolve(true);
+ backupTask(async()=>{
+  try{
+   if(!(await permission))throw new Error('도메인 접근을 허용하지 않아 가져오기를 취소했습니다. 기존 계정은 변경하지 않았습니다.');
+   const r=await ask({type:'IMPORT_BACKUP',envelope:pending.envelope,password:pending.password});
+   await load();$('backup-import').reset();notice(`계정 ${r.accountsAdded}개와 새 도메인 ${r.domainsAdded}개를 가져왔습니다. 중복 ${r.accountsSkipped}개는 건너뛰었습니다.`);
+  }finally{resetBackup();}
+ });
+};
 $('begin-import').onclick=()=>run(async()=>{
   const {request}=await ask({type:'BEGIN_IMPORT',siteId:selected});
   const url=URL.createObjectURL(new Blob([JSON.stringify(request)],{type:'application/json'}));
