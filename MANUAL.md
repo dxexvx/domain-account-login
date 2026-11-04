@@ -1,6 +1,6 @@
 # 도메인 계정 로그인 · 간단 매뉴얼
 
-설치는 [저장소 README](../../README.md#3분-설치)를 따르세요. 이 폴더의 `manifest.json`을 Chrome에 로드하면 됩니다.
+설치는 [저장소 README](README.md#설치)를 따르세요. 이 폴더의 `manifest.json`을 Chrome에 로드하면 됩니다.
 
 | 할 일 | 방법 |
 | --- | --- |

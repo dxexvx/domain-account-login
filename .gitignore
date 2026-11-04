@@ -1,0 +1,9 @@
+node_modules/
+output/
+.env
+*.zip
+.DS_Store
+design-qa/*/evidence
+
+__pycache__/
+*.pyc
