@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "도메인 계정 로그인",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "허용한 사이트 어디서든 이동 가능한 계정 버튼으로 현재 탭에 로그인합니다.",
   "minimum_chrome_version": "120",
   "permissions": ["storage", "scripting", "activeTab"],
@@ -9,6 +9,6 @@
   "background": {"service_worker": "background.js", "type": "module"},
   "action": {"default_title": "도메인 계정 로그인", "default_popup": "popup.html"},
   "options_page": "options.html",
-  "incognito": "not_allowed",
+  "incognito": "spanning",
   "content_security_policy": {"extension_pages": "script-src 'self'; object-src 'none'"}
 }

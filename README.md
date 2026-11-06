@@ -31,7 +31,7 @@ git clone https://github.com/dxexvx/domain-account-login.git "$HOME/chrome-brows
 4. 버튼은 세로 축약형이며 hover/focus로 전체 별칭을 확인합니다. 손잡이 드래그·방향키 이동·접기/펼치기와 위치 저장을 지원합니다.
 5. 설정 상단 **계정 내보내기 · 가져오기**에서 전체/현재 도메인을 암호화 파일로 옮깁니다. 별도 백업 암호10자 이상을 사용하고, 중복 아이디는 기존 비밀번호·설정을 유지합니다.
 
-마스터 비밀번호·자동 잠금·시크릿 실행은 없습니다. 같은 Chrome 프로필은 로그인 세션을 공유합니다. 동시 분리가 필요하면 별도 Chrome 프로필을 사용하세요. 로그인 요소를 찾지 못하면 설정에서 직접 지정할 수 있습니다. OTP·CAPTCHA·SSO 추가 인증은 사이트에서 완료합니다.
+마스터 비밀번호·자동 잠금은 없습니다. 일반 창의 탭들은 로그인 세션을 공유합니다. 시크릿 창에서도 사용하려면 `chrome://extensions` → 도메인 계정 로그인 → **세부정보** → **시크릿 모드에서 허용**을 켜세요. 일반 창과 시크릿 창의 웹 로그인 세션은 분리되며, 같은 프로필의 시크릿 창끼리는 공유합니다. 저장된 계정과 설정은 두 창에서 함께 사용합니다. 계정별로 더 많은 세션이 필요하면 별도 Chrome 프로필을 사용하세요. 로그인 요소를 찾지 못하면 설정에서 직접 지정할 수 있습니다. OTP·CAPTCHA·SSO 추가 인증은 사이트에서 완료합니다.
 
 계정은 프로필 키와 함께 로컬에 암호화 저장하며 별도 마스터 비밀번호 장벽은 제공하지 않습니다. 비밀번호·백업 파일·키를 Git이나 채팅에 넣지 마세요.
 
@@ -49,6 +49,7 @@ npx playwright install chromium  # 테스트 브라우저가 없을 때만
 npm run check
 npm test
 QA_DIR=/absolute/evidence/browser npm run test:browser
+QA_DIR=/absolute/evidence/incognito npm run test:incognito
 QA_DIR=/absolute/evidence/backup node tests/backup-browser.mjs
 QA_DIR=/absolute/evidence/import node tests/transfer-browser.mjs
 QA_DIR=/absolute/evidence/mapping node tests/mapping.mjs
