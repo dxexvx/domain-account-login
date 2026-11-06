@@ -6,7 +6,7 @@
 
 ## 설치
 
-1. [소스 ZIP](https://github.com/dxexvx/domain-account-login/archive/refs/heads/main.zip)을 받아 압축을 풉니다. Git 사용자는 아래 명령을 실행합니다.
+1. [설치용 ZIP 다운로드](https://github.com/dxexvx/domain-account-login/releases/download/v1.3.1/domain-account-login-1.3.1.zip) 후 압축을 풉니다. [릴리스 페이지](https://github.com/dxexvx/domain-account-login/releases/latest)에서 버전과 설치 안내를 확인할 수 있습니다. Git 사용자는 아래 명령을 실행합니다.
 2. 폴더를 오래 유지할 위치에 둡니다. 예: `문서/chrome-browser/domain-account-login`.
 3. Chrome에서 `chrome://extensions` → **개발자 모드** → **압축해제된 확장 프로그램을 로드합니다**를 누릅니다.
 4. **이 저장소 루트**를 선택합니다. `manifest.json`이 바로 안에 있어야 하며 `chrome-browser` 상위 폴더를 선택하지 않습니다.

@@ -4,6 +4,8 @@
 
 ## 새 설치
 
+Git 없이 설치하려면 [최신 릴리스](https://github.com/dxexvx/domain-account-login/releases/latest)의 설치용 ZIP을 내려받아 압축을 풉니다. ZIP 안의 `domain-account-login` 폴더에 manifest.json과 설치·사용 안내가 함께 있습니다. 아래 3단계부터 진행하면 됩니다.
+
 1. 기존 Chrome 확장 목록에서 같은 확장의 설치 여부·버전·경로를 먼저 확인합니다. 설치돼 있다면 아래 업데이트 절차를 사용합니다.
 2. 사용자에게 유지할 위치가 정해져 있으면 그 경로를 사용합니다. 아래 명령은 대상 폴더가 없을 때만 실행합니다.
 
