@@ -41,7 +41,7 @@ try{
  await options.screenshot({path:path.join(output,'implementation-domain-vault.png')});
 
  await options.locator('#account-section').waitFor();
- assert.equal(await options.locator('#origin').inputValue(),origin);assert.equal(await options.locator('#login-url').inputValue(),origin+'/login?return=home');
+ assert.equal(await options.locator('#origin').inputValue(),origin);assert.equal(await options.locator('#login-url').inputValue(),'/login?return=home');
  assert.equal(await options.locator('#selector-username').inputValue(),'#uId');
  await options.reload();await options.locator('#account-section').waitFor();assert.equal(await options.locator('#selector-password').inputValue(),'#uPwd');
  await options.evaluate(async()=>{const sites=(await chrome.runtime.sendMessage({type:'LIST'})).sites;const r=await chrome.runtime.sendMessage({type:'SAVE_ACCOUNT',siteId:sites[0].id,account:{alias:'보존 확인',username:'synthetic-preserved',password:'synthetic-password'}});if(!r.ok)throw Error(r.error);});

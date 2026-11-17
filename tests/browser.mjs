@@ -28,7 +28,7 @@ try {
  },{id,origin});
  let options=await context.newPage();await options.goto(`chrome-extension://${id}/options.html`);
  await options.locator('#workspace').waitFor({state:'visible'});
- await options.locator('#origin').fill(origin);await options.locator('#login-url').fill(origin+'/login-page');
+ await options.locator('#origin').fill(origin);await options.locator('#login-url').fill('/login-page');
  await options.locator('#site-form button.primary').click();await options.locator('#account-section').waitFor({state:'visible'});
  const siteId=await options.locator('#site-id').inputValue();assert(siteId);
  assert.equal(await options.locator('#master').count(),0);record('DAL-01 브라우저 보관함 자동 준비·도메인 저장');

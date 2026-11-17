@@ -27,7 +27,7 @@ async function launch(name){
 }
 async function saveSite(owner,site){
  await owner.page.locator('#new-site').click();
- await owner.page.locator('#origin').fill(site.origin);await owner.page.locator('#login-url').fill(site.loginUrl);
+ await owner.page.locator('#origin').fill(site.origin);await owner.page.locator('#login-url').fill(site.loginUrl.slice(site.origin.length)||'/');
  for(const field of ['username','password','submit','logout'])await owner.page.locator('#selector-'+field).fill(site.selectors[field]||'');
  await owner.page.locator('#site-form button.primary').click();await owner.page.getByText('도메인을 저장했습니다. 로그인 요소와 계정을 등록하세요.',{exact:true}).waitFor();
  const found=(await owner.ask({type:'LIST'})).sites.find(s=>s.origin===site.origin);assert(found,'site saved through permission gesture');return {ok:true,id:found.id};

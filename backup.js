@@ -31,7 +31,7 @@ export function normalizeBackup(sites){
    if(!a||!['alias','username'].every(f=>typeof a[f]==='string'&&a[f].trim())||typeof a.password!=='string'||!a.password.length||a.alias.length>80||a.username.length>500||a.password.length>1000)invalid();
    return {alias:a.alias.trim(),username:a.username,password:a.password};
   });
-  const site=validateSite({origin:source.origin,loginUrl:source.loginUrl,selectors,accounts,shareOnLocalhost:source.shareOnLocalhost,...(source.floating?{floating:source.floating}:{})});
+  const site=validateSite({origin:source.origin,loginUrl:source.loginUrl,selectors,accounts,additionalDomains:source.additionalDomains,shareOnLocalhost:source.shareOnLocalhost,...(source.floating?{floating:source.floating}:{})});
   const {id,...portable}=site;return portable;
  });
  validateSharing(normalized);return normalized;

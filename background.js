@@ -1,4 +1,4 @@
-import {originOf,validateSite,sitePatterns,siteForPage,validateSharing,floatingLayout,metadata,encrypt,decrypt} from './core.js';
+import {originOf,validateSite,loginPathOf,sitePatterns,siteForPage,validateSharing,floatingLayout,metadata,encrypt,decrypt} from './core.js';
 import {fillAndSubmit} from './login.js';
 import {sessionAction} from './session.js';
 import {browserKey} from './vault.js';
@@ -15,7 +15,7 @@ async function initialize() {
 }
 const ready=initialize();
 const key=browserKey;
-async function data() {const {vault}=await chrome.storage.local.get('vault');if(!vault) throw new Error('먼저 설정에서 보관함을 만드세요.');return decrypt(vault,await key());}
+async function data() {const {vault}=await chrome.storage.local.get('vault');if(!vault) throw new Error('먼저 설정에서 보관함을 만드세요.');const d=await decrypt(vault,await key());return {...d,sites:d.sites.map(validateSite)};}
 async function save(dataValue) {
   const {vault}=await chrome.storage.local.get('vault');
   await chrome.storage.local.set({vault:await encrypt(dataValue,await key(),vault.salt)});
@@ -33,6 +33,13 @@ async function synchronize(sites) {
       for(const tab of tabs) try {await chrome.scripting.executeScript({target:{tabId:tab.id},files:['content.js']});} catch {}
     }
   }
+}
+async function releaseUnusedPermissions(old,sites) {
+  if(!old)return;
+  // Chrome host grants cover every port. Keep grants used by any remaining group.
+  const hostKey=p=>{const u=new URL(p);return u.protocol+'//'+u.hostname;};
+  const used=new Set(sites.flatMap(sitePatterns).map(hostKey)),unused=sitePatterns(old).filter(p=>!used.has(hostKey(p)));
+  if(unused.length)await chrome.permissions.remove({origins:unused});
 }
 function admin(sender) {if(sender.id!==chrome.runtime.id || sender.url!==chrome.runtime.getURL('options.html')) throw new Error('설정 화면에서만 가능한 작업입니다.');}
 function pageOrigin(sender) {
@@ -188,12 +195,13 @@ async function handle(message,sender) {
   if(message.type==='APPLY_DRAFT') {
     const {mappingDraft:draft}=await chrome.storage.session.get('mappingDraft');
     if(!draft||draft.expires<Date.now())return {};
-    const d=await data(),site=validateSite(draft.site),old=d.sites.find(x=>x.origin===site.origin);
-    if(!(await chrome.permissions.contains({origins:[site.origin+'/*']})))throw new Error('사이트 접근 권한을 다시 허용하세요.');
-    site.id=old?.id||site.id;site.accounts=old?.accounts||[];if(old?.shareOnLocalhost)site.shareOnLocalhost=true;if(old?.floating)site.floating=old.floating;if(old?.selectors.logout)site.selectors.logout=old.selectors.logout;
+    const d=await data(),mapped=validateSite(draft.site),effective=siteForPage(d.sites,mapped.origin),old=d.sites.find(x=>x.id===effective?.id);
+    if(!(await chrome.permissions.contains({origins:[mapped.origin+'/*']})))throw new Error('사이트 접근 권한을 다시 허용하세요.');
+    const site=validateSite({...mapped,origin:old?.origin||mapped.origin,loginUrl:loginPathOf(mapped),additionalDomains:old?.additionalDomains||[]});
+    site.id=old?.id||site.id;site.accounts=old?.accounts||[];if(old?.floating)site.floating=old.floating;if(old?.selectors.logout)site.selectors.logout=old.selectors.logout;
     // Keep an existing explicit selection when automatic detection is ambiguous.
     for(const field of draft.missing)site.selectors[field]=old?.selectors[field]||'';
-    d.sites=d.sites.filter(x=>x.origin!==site.origin);d.sites.push(site);await save(d);await synchronize(d.sites);
+    d.sites=d.sites.filter(x=>x.id!==site.id);d.sites.push(site);validateSharing(d.sites);await save(d);await synchronize(d.sites);
     await chrome.storage.session.remove('mappingDraft');return {id:site.id,missing:draft.missing};
   }
   if(message.type==='STATUS') {await key();return {ready:true};}
@@ -204,12 +212,11 @@ async function handle(message,sender) {
     const old=d.sites.find(x=>x.id===site.id);site.accounts=old?.accounts||[];if(old?.floating)site.floating=old.floating;
     validateSharing([...d.sites.filter(x=>x.id!==site.id),site]);
     for(const pattern of sitePatterns(site))if(!(await chrome.permissions.contains({origins:[pattern]}))) throw new Error('사이트 접근 권한을 허용하세요.');
-    d.sites=d.sites.filter(x=>x.id!==site.id);d.sites.push(site);await save(d);await synchronize(d.sites);return {id:site.id};
+    d.sites=d.sites.filter(x=>x.id!==site.id);d.sites.push(site);await save(d);await synchronize(d.sites);await releaseUnusedPermissions(old,d.sites);return {id:site.id};
   }
   if(message.type==='DELETE_SITE') {
     const d=await data(),site=d.sites.find(x=>x.id===message.id);d.sites=d.sites.filter(x=>x.id!==message.id);await save(d);await synchronize(d.sites);
-    // A hostname permission may also be used by another exact site or shared alias.
-    if(site){const hostKey=p=>{const u=new URL(p);return u.protocol+'//'+u.hostname;};const used=new Set(d.sites.flatMap(sitePatterns).map(hostKey));const unused=sitePatterns(site).filter(p=>!used.has(hostKey(p)));if(unused.length)await chrome.permissions.remove({origins:unused});}return {};
+    await releaseUnusedPermissions(site,d.sites);return {};
   }
   if(message.type==='SAVE_ACCOUNT' || message.type==='DELETE_ACCOUNT') {
     const d=await data(),site=d.sites.find(x=>x.id===message.siteId);if(!site) throw new Error('도메인을 먼저 저장하세요.');
@@ -226,8 +233,9 @@ async function handle(message,sender) {
   if(message.type==='PICK') {
     if(!['username','password','submit','logout'].includes(message.field)) throw new Error('선택할 요소가 올바르지 않습니다.');
     const d=await data(),site=d.sites.find(x=>x.id===message.siteId);if(!site) throw new Error('도메인을 저장하세요.');
-    const tabs=await chrome.tabs.query({url:`${site.origin}/*`});
-    let tab=tabs.find(x=>!x.incognito);
+    const tabs=await chrome.tabs.query({url:sitePatterns(site)});
+    const available=tabs.filter(x=>!x.incognito&&siteForPage(d.sites,x.url)?.id===site.id);
+    let tab=available.find(x=>x.active)||available[0];
     if(!tab) tab=await chrome.tabs.create({url:site.loginUrl});
     await chrome.windows.update(tab.windowId,{focused:true});await chrome.tabs.update(tab.id,{active:true});
     await chrome.storage.session.set({[`pick-${tab.id}`]:{siteId:site.id,field:message.field,expires:Date.now()+300000}});

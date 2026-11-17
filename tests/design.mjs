@@ -14,7 +14,7 @@ try{
  const page=await context.newPage();await page.goto(`chrome-extension://${id}/options.html`);
  await page.screenshot({path:path.join(output,`${stage}-vault-desktop.png`)});
  await page.locator('#workspace').waitFor({state:'visible'});
- await page.locator('#origin').fill(origin);await page.locator('#login-url').fill(origin+'/login');await page.locator('#site-form button.primary').click();await page.locator('#account-section').waitFor();
+ await page.locator('#origin').fill(origin);await page.locator('#login-url').fill('/login');await page.locator('#site-form button.primary').click();await page.locator('#account-section').waitFor();
  await page.evaluate(async origin=>{const ask=async m=>{const r=await chrome.runtime.sendMessage(m);if(!r.ok)throw Error(r.error);return r;};const {id}=await ask({type:'SAVE_SITE',site:{id:document.querySelector('#site-id').value,origin,loginUrl:origin+'/login',selectors:{username:'#user',password:'#pass',submit:'#submit'}}});for(const [i,alias] of ['관리자','매체사(그로스텔라)','매체사(KIMG)','랩사(플랫브레드) · 긴 별칭 확인'].entries())await ask({type:'SAVE_ACCOUNT',siteId:id,account:{alias,username:`synthetic-role-${i}`,password:'synthetic-only-password'}});},origin);
  await page.reload();await page.locator('.account').nth(3).waitFor();
  for(const [name,width,height] of [['desktop',1920,1080],['tablet',768,1024],['mobile',390,844]]){

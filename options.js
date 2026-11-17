@@ -1,4 +1,4 @@
-import {originOf,sitePatterns} from './core.js';
+import {originOf,validateSite,validateSharing,additionalDomainsOf,loginPathOf,sitePatterns} from './core.js';
 import {browserKey} from './vault.js';
 import {MAX_BACKUP_BYTES} from './backup.js';
 const $=id=>document.getElementById(id);
@@ -10,15 +10,26 @@ const btn=(text,fn)=>{const b=document.createElement('button');b.type='button';b
 function editAccount(a={}) {
   $('account-form').reset();$('account-id').value=a.id||'';$('alias').value=a.alias||'';$('username').value=a.username||'';$('password').required=!a.id;$('account-title').textContent=a.id?'계정 수정':'계정 추가';
 }
+function addDomain(value='',focus=false) {
+  const row=document.createElement('div');row.className='domain-row';
+  const label=document.createElement('label'),text=document.createElement('span'),input=document.createElement('input');
+  text.textContent='추가 도메인';input.type='text';input.value=value;input.required=true;input.maxLength=2000;input.placeholder='https://dev.example.com 또는 localhost:*';input.setAttribute('aria-describedby','additional-domains-help');
+  label.append(text,input);
+  const remove=btn('제거',()=>{const next=row.nextElementSibling||row.previousElementSibling;row.remove();nameDomains();(next?.querySelector('input')||$('add-domain')).focus();});
+  row.append(label,remove);$('additional-domains').append(row);nameDomains();if(focus)input.focus();
+}
+function nameDomains() {
+  [...$('additional-domains').children].forEach((row,i)=>{row.querySelector('input').setAttribute('aria-label',`추가 도메인 ${i+1}`);row.querySelector('button').setAttribute('aria-label',`추가 도메인 ${i+1} 제거`);});
+}
 function selectSite(id) {
   selected=id;const s=sites.find(x=>x.id===id);
   $('backup-scope').querySelector('[value="current"]').disabled=!s;
   if(!s)$('backup-scope').value='all';$('export-backup').disabled=!sites.length;
   $('account-import').hidden=!s;$('import-file').value='';
-  $('site-form').reset();$('site-id').value=s?.id||'';$('origin').value=s?.origin||'';$('login-url').value=s?.loginUrl||'';
-  $('share-localhost').checked=!!s?.shareOnLocalhost;
+  $('site-form').reset();$('site-id').value=s?.id||'';$('origin').value=s?.origin||'';$('login-url').value=s?loginPathOf(s):'';
+  $('additional-domains').replaceChildren();for(const domain of s?additionalDomainsOf(s):[])addDomain(domain);
   for(const field of ['username','password','submit','logout']) $('selector-'+field).value=s?.selectors[field]||'';
-  $('site-title').textContent='로그인 화면 설정';$('domain-heading').textContent=s?new URL(s.origin).host:'도메인 추가';$('domain-description').textContent=s?'이 도메인의 계정을 관리합니다.':'로그인 화면에서 확장 아이콘 → 자동 매핑으로 시작할 수 있습니다.';$('account-count').textContent=s?String(s.accounts.length):'';const mapped=s&&['username','password','submit'].every(f=>s.selectors[f]);$('mapping-status').textContent=mapped?'로그인 요소 3개 지정됨':s?'로그인 요소를 지정하세요':'주소와 로그인 요소를 지정하세요';$('login-settings').open=!s||!mapped;$('delete-site').hidden=!s;$('account-section').hidden=!s;
+  $('site-title').textContent='로그인 화면 설정';$('domain-heading').textContent=s?new URL(s.origin).host:'도메인 추가';$('domain-description').textContent=s?'기준 도메인과 추가 도메인에서 같은 계정을 사용합니다.':'로그인 화면에서 확장 아이콘 → 자동 매핑으로 시작할 수 있습니다.';$('account-count').textContent=s?String(s.accounts.length):'';const mapped=s&&['username','password','submit'].every(f=>s.selectors[f]);$('mapping-status').textContent=mapped?'로그인 요소 3개 지정됨':s?'로그인 요소를 지정하세요':'주소와 로그인 요소를 지정하세요';$('login-settings').open=!s||!mapped;$('delete-site').hidden=!s;$('account-section').hidden=!s;
   document.querySelectorAll('[data-pick]').forEach(b=>b.disabled=!s);
   $('accounts').replaceChildren();
   for(const a of s?.accounts||[]) {
@@ -32,7 +43,11 @@ function selectSite(id) {
 }
 async function load(id=selected) {
   sites=(await ask({type:'LIST'})).sites;$('sites').replaceChildren();
-  for(const s of sites){const b=btn(s.origin,()=>selectSite(s.id));b.dataset.id=s.id;$('sites').append(b);}
+  for(const s of sites){
+    const group=document.createElement('div');group.className='site-group';const b=btn(s.origin,()=>selectSite(s.id));b.dataset.id=s.id;group.append(b);
+    const domains=additionalDomainsOf(s);if(domains.length){const children=document.createElement('ul');children.className='site-domains';for(const domain of domains){const li=document.createElement('li');li.textContent=domain;children.append(li);}group.append(children);}
+    $('sites').append(group);
+  }
   selectSite(id && sites.some(x=>x.id===id)?id:sites[0]?.id||null);
 }
 async function status() {
@@ -46,12 +61,17 @@ async function status() {
   if(applied.id){$('setup-context').hidden=true;notice(applied.missing.length?'도메인을 준비했습니다. 찾지 못한 요소는 화면에서 직접 선택하세요.':'현재 로그인 주소와 세 요소를 저장했습니다. 계정을 추가하세요.');}
 }
 $('new-site').onclick=()=>{selectSite(null);$('origin').focus();};
+$('add-domain').onclick=()=>addDomain('',true);
 $('site-form').onsubmit=e=>{
   e.preventDefault();
   // Request host permission directly inside the user gesture, before any awaited IPC.
   let origin;try{origin=originOf($('origin').value.trim());}catch(error){notice(error.message,true);return;}
-  const site={id:$('site-id').value,origin,loginUrl:$('login-url').value.trim()||origin,selectors:{},shareOnLocalhost:$('share-localhost').checked};
-  try{if(new URL(site.loginUrl).origin!==origin)throw new Error('로그인 주소와 허용 도메인이 같아야 합니다.');
+  const loginPath=$('login-url').value.trim()||'/';
+  let site;
+  try{
+    if(!loginPath.startsWith('/')||loginPath.startsWith('//')||loginPath.includes('\\'))throw new Error('로그인 페이지는 /login처럼 경로만 입력하세요.');
+    site=validateSite({id:$('site-id').value,origin,loginUrl:loginPath,selectors:{username:'',password:'',submit:''},additionalDomains:[...$('additional-domains').querySelectorAll('input')].map(input=>input.value)});
+    validateSharing([...sites.filter(s=>s.id!==site.id),site]);
     for(const f of ['username','password','submit','logout']){site.selectors[f]=$('selector-'+f).value.trim();if(site.selectors[f])document.querySelector(site.selectors[f]);}
   }catch(error){notice(error.message,true);return;}
   const permission=chrome.permissions.request({origins:sitePatterns(site)});

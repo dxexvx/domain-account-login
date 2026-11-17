@@ -6,7 +6,7 @@
 
 ## 설치
 
-1. [설치용 ZIP 다운로드](https://github.com/dxexvx/domain-account-login/releases/download/v1.4.0/domain-account-login-1.4.0.zip) 후 압축을 풉니다. [릴리스 페이지](https://github.com/dxexvx/domain-account-login/releases/latest)에서 버전과 설치 안내를 확인할 수 있습니다. Git 사용자는 아래 명령을 실행합니다.
+1. [설치용 ZIP 다운로드](https://github.com/dxexvx/domain-account-login/releases/download/v1.5.0/domain-account-login-1.5.0.zip) 후 압축을 풉니다. [릴리스 페이지](https://github.com/dxexvx/domain-account-login/releases/latest)에서 버전과 설치 안내를 확인할 수 있습니다. Git 사용자는 아래 명령을 실행합니다.
 2. 폴더를 오래 유지할 위치에 둡니다. 예: `문서/chrome-browser/domain-account-login`.
 3. Chrome에서 `chrome://extensions` → **개발자 모드** → **압축해제된 확장 프로그램을 로드합니다**를 누릅니다.
 4. **이 저장소 루트**를 선택합니다. `manifest.json`이 바로 안에 있어야 하며 `chrome-browser` 상위 폴더를 선택하지 않습니다.
@@ -30,7 +30,7 @@ git clone https://github.com/dxexvx/domain-account-login.git "$HOME/chrome-brows
 3. 해당 도메인의 어느 화면에서든 플로팅 계정 버튼을 누릅니다. 다른 계정으로 로그인 중이면 정상 로그아웃 → 선택 계정 로그인 → 원래 페이지 주소 복귀 순으로 전환합니다.
 4. 버튼은 세로 축약형이며 hover/focus로 전체 별칭을 확인합니다. 손잡이 드래그·방향키 이동·접기/펼치기와 위치 저장을 지원합니다.
 5. 설정 상단 **계정 내보내기 · 가져오기**에서 전체/현재 도메인을 암호화 파일로 옮깁니다. 별도 백업 암호10자 이상을 사용하고, 중복 아이디는 기존 비밀번호·설정을 유지합니다.
-6. BARO처럼 운영과 로컬에서 같은 계정을 쓰면 해당 도메인의 **로그인 화면 설정**에서 **localhost:*에서 이 도메인의 계정 공유**를 선택하고 저장·접근 허용합니다. http·https localhost의 모든 포트에서 원본 계정을 쓰며 현재 로컬 포트의 같은 로그인 경로로 이동합니다. [사용 범위와 우선순위](MANUAL.md#localhost-모든-포트에서-계정-공유)를 확인하세요.
+6. 같은 계정을 쓰는 주소는 기준 도메인의 **로그인 화면 설정 → 함께 사용할 추가 도메인**에 입력합니다. 여러 주소를 추가·수정·제거하고 **도메인 저장 · 접근 허용**으로 반영합니다. **로그인 페이지 경로**는 `/login`처럼 입력하며 각 접속 도메인·포트에 적용합니다. `localhost:*`도 목록 항목으로 사용할 수 있습니다. [사용 방법과 우선순위](MANUAL.md#여러-도메인에서-계정-공유)를 확인하세요.
 
 마스터 비밀번호·자동 잠금은 없습니다. 일반 창의 탭들은 로그인 세션을 공유합니다. 시크릿 창에서도 사용하려면 `chrome://extensions` → 도메인 계정 로그인 → **세부정보** → **시크릿 모드에서 허용**을 켜세요. 일반 창과 시크릿 창의 웹 로그인 세션은 분리되며, 같은 프로필의 시크릿 창끼리는 공유합니다. 저장된 계정과 설정은 두 창에서 함께 사용합니다. 계정별로 더 많은 세션이 필요하면 별도 Chrome 프로필을 사용하세요. 로그인 요소를 찾지 못하면 설정에서 직접 지정할 수 있습니다. OTP·CAPTCHA·SSO 추가 인증은 사이트에서 완료합니다.
 
@@ -55,7 +55,7 @@ QA_DIR=/absolute/evidence/backup node tests/backup-browser.mjs
 QA_DIR=/absolute/evidence/import node tests/transfer-browser.mjs
 QA_DIR=/absolute/evidence/mapping node tests/mapping.mjs
 QA_DIR=/absolute/evidence/floating node tests/floating.mjs
-QA_DIR=/absolute/evidence/localhost node tests/localhost-browser.mjs
+QA_DIR=/absolute/evidence/domains node tests/domains-browser.mjs
 npm run package
 ```
 
