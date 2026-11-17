@@ -1,4 +1,4 @@
-import {originOf,validateSite} from './core.js';
+import {originOf,validateSite,validateSharing} from './core.js';
 
 export const MAX_BACKUP_BYTES=5*1024*1024;
 const FORMAT='domain-account-login-backup',ITERATIONS=310000;
@@ -19,7 +19,7 @@ async function derive(password,salt){
 export function normalizeBackup(sites){
  if(!Array.isArray(sites)||!sites.length||sites.length>100)invalid();
  const origins=new Set();let total=0;
- return sites.map(source=>{
+ const normalized=sites.map(source=>{
   if(!source||typeof source.origin!=='string'||originOf(source.origin)!==source.origin||origins.has(source.origin))invalid();
   origins.add(source.origin);
   if(!Array.isArray(source.accounts)||(total+=source.accounts.length)>5000)invalid();
@@ -31,9 +31,10 @@ export function normalizeBackup(sites){
    if(!a||!['alias','username'].every(f=>typeof a[f]==='string'&&a[f].trim())||typeof a.password!=='string'||!a.password.length||a.alias.length>80||a.username.length>500||a.password.length>1000)invalid();
    return {alias:a.alias.trim(),username:a.username,password:a.password};
   });
-  const site=validateSite({origin:source.origin,loginUrl:source.loginUrl,selectors,accounts,...(source.floating?{floating:source.floating}:{})});
+  const site=validateSite({origin:source.origin,loginUrl:source.loginUrl,selectors,accounts,shareOnLocalhost:source.shareOnLocalhost,...(source.floating?{floating:source.floating}:{})});
   const {id,...portable}=site;return portable;
  });
+ validateSharing(normalized);return normalized;
 }
 export async function sealBackup(sites,password){
  const plain=encoder.encode(JSON.stringify({sites:normalizeBackup(sites)}));
@@ -63,5 +64,5 @@ export function mergeBackup(existing,imported){
    users.add(account.username);site.accounts.push({...account,id:crypto.randomUUID()});accountsAdded++;
   }
  }
- return {sites,domainsAdded,accountsAdded,accountsSkipped};
+ validateSharing(sites);return {sites,domainsAdded,accountsAdded,accountsSkipped};
 }

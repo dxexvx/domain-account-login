@@ -1,4 +1,4 @@
-import {originOf,validateSite,floatingLayout,metadata,encrypt,decrypt} from './core.js';
+import {originOf,validateSite,sitePatterns,siteForPage,validateSharing,floatingLayout,metadata,encrypt,decrypt} from './core.js';
 import {fillAndSubmit} from './login.js';
 import {sessionAction} from './session.js';
 import {browserKey} from './vault.js';
@@ -24,10 +24,12 @@ async function synchronize(sites) {
   const registered=await chrome.scripting.getRegisteredContentScripts();
   if(registered.length) await chrome.scripting.unregisterContentScripts({ids:registered.map(x=>x.id)});
   for(const site of sites) {
-    if(await chrome.permissions.contains({origins:[`${site.origin}/*`]})) {
-      await chrome.scripting.registerContentScripts([{id:`site-${site.id}`,matches:[`${site.origin}/*`],js:['content.js'],runAt:'document_idle',persistAcrossSessions:true}]);
+    const matches=[];
+    for(const pattern of sitePatterns(site))if(await chrome.permissions.contains({origins:[pattern]}))matches.push(pattern);
+    if(matches.length) {
+      await chrome.scripting.registerContentScripts([{id:`site-${site.id}`,matches,js:['content.js'],runAt:'document_idle',persistAcrossSessions:true}]);
       // Activate already-open tabs after registration without requiring a refresh.
-      const tabs=await chrome.tabs.query({url:`${site.origin}/*`});
+      const tabs=await chrome.tabs.query({url:matches});
       for(const tab of tabs) try {await chrome.scripting.executeScript({target:{tabId:tab.id},files:['content.js']});} catch {}
     }
   }
@@ -37,7 +39,7 @@ function pageOrigin(sender) {
   if(!sender.tab || sender.frameId!==0 || sender.id!==chrome.runtime.id) throw new Error('허용된 최상위 화면이 아닙니다.');
   return originOf(sender.url);
 }
-async function pageSite(sender) {const origin=pageOrigin(sender);const d=await data();const site=d.sites.find(x=>x.origin===origin);if(!site || !(await chrome.permissions.contains({origins:[`${origin}/*`]}))) throw new Error('허용되지 않은 사이트입니다.');return site;}
+async function pageSite(sender) {const origin=pageOrigin(sender);const d=await data();const site=siteForPage(d.sites,origin);if(!site || !(await chrome.permissions.contains({origins:[`${origin}/*`]}))) throw new Error('허용되지 않은 사이트입니다.');return site;}
 async function submit(tabId,site,accountId,expectedUrl) {
   const account=site.accounts.find(x=>x.id===accountId);
   if(!account) throw new Error('계정을 찾을 수 없습니다.');
@@ -109,7 +111,7 @@ async function handle(message,sender) {
     const pending=(await chrome.storage.session.get(storageKey))[storageKey];
     if(!pending) return {};
     if(pending.expires<Date.now() || pending.siteId!==site.id) {await chrome.storage.session.remove(storageKey);return {};}
-    if(pending.loginUrl!==site.loginUrl)return {};
+    if(pending.loginUrl!==site.loginUrl){await chrome.storage.session.remove(storageKey);return {};}
     const tab=await chrome.tabs.get(sender.tab.id);
     if(tab.url!==message.pageUrl || originOf(tab.url)!==site.origin)return {};
     const pageUrl=tab.url;
@@ -155,7 +157,7 @@ async function handle(message,sender) {
   if(message.type==='PREVIEW_BACKUP'||message.type==='IMPORT_BACKUP') {
     const imported=await openBackup(message.envelope,message.password),d=await data();
     const merged=mergeBackup(d.sites,imported),requiredOrigins=[];
-    for(const site of imported)if(!(await chrome.permissions.contains({origins:[site.origin+'/*']})))requiredOrigins.push(site.origin+'/*');
+    for(const source of imported){const site=merged.sites.find(s=>s.origin===source.origin);for(const pattern of sitePatterns(site))if(!(await chrome.permissions.contains({origins:[pattern]}))&&!requiredOrigins.includes(pattern))requiredOrigins.push(pattern);}
     const summary={domainsAdded:merged.domainsAdded,accountsAdded:merged.accountsAdded,accountsSkipped:merged.accountsSkipped,domains:imported.map(s=>({origin:s.origin,accounts:s.accounts.length})),requiredOrigins};
     if(message.type==='PREVIEW_BACKUP')return summary;
     if(requiredOrigins.length)throw new Error('가져올 도메인의 접근 권한을 허용하세요. 기존 계정은 변경하지 않았습니다.');
@@ -188,7 +190,7 @@ async function handle(message,sender) {
     if(!draft||draft.expires<Date.now())return {};
     const d=await data(),site=validateSite(draft.site),old=d.sites.find(x=>x.origin===site.origin);
     if(!(await chrome.permissions.contains({origins:[site.origin+'/*']})))throw new Error('사이트 접근 권한을 다시 허용하세요.');
-    site.id=old?.id||site.id;site.accounts=old?.accounts||[];if(old?.floating)site.floating=old.floating;if(old?.selectors.logout)site.selectors.logout=old.selectors.logout;
+    site.id=old?.id||site.id;site.accounts=old?.accounts||[];if(old?.shareOnLocalhost)site.shareOnLocalhost=true;if(old?.floating)site.floating=old.floating;if(old?.selectors.logout)site.selectors.logout=old.selectors.logout;
     // Keep an existing explicit selection when automatic detection is ambiguous.
     for(const field of draft.missing)site.selectors[field]=old?.selectors[field]||'';
     d.sites=d.sites.filter(x=>x.origin!==site.origin);d.sites.push(site);await save(d);await synchronize(d.sites);
@@ -200,12 +202,14 @@ async function handle(message,sender) {
     const d=await data(), site=validateSite(message.site);
     if(d.sites.some(x=>x.origin===site.origin && x.id!==site.id)) throw new Error('이미 등록한 도메인입니다.');
     const old=d.sites.find(x=>x.id===site.id);site.accounts=old?.accounts||[];if(old?.floating)site.floating=old.floating;
-    if(!(await chrome.permissions.contains({origins:[`${site.origin}/*`]}))) throw new Error('사이트 접근 권한을 허용하세요.');
+    validateSharing([...d.sites.filter(x=>x.id!==site.id),site]);
+    for(const pattern of sitePatterns(site))if(!(await chrome.permissions.contains({origins:[pattern]}))) throw new Error('사이트 접근 권한을 허용하세요.');
     d.sites=d.sites.filter(x=>x.id!==site.id);d.sites.push(site);await save(d);await synchronize(d.sites);return {id:site.id};
   }
   if(message.type==='DELETE_SITE') {
     const d=await data(),site=d.sites.find(x=>x.id===message.id);d.sites=d.sites.filter(x=>x.id!==message.id);await save(d);await synchronize(d.sites);
-    if(site) await chrome.permissions.remove({origins:[`${site.origin}/*`]});return {};
+    // A hostname permission may also be used by another exact site or shared alias.
+    if(site){const hostKey=p=>{const u=new URL(p);return u.protocol+'//'+u.hostname;};const used=new Set(d.sites.flatMap(sitePatterns).map(hostKey));const unused=sitePatterns(site).filter(p=>!used.has(hostKey(p)));if(unused.length)await chrome.permissions.remove({origins:unused});}return {};
   }
   if(message.type==='SAVE_ACCOUNT' || message.type==='DELETE_ACCOUNT') {
     const d=await data(),site=d.sites.find(x=>x.id===message.siteId);if(!site) throw new Error('도메인을 먼저 저장하세요.');

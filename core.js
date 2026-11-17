@@ -16,7 +16,23 @@ export function validateSite(site) {
     if (typeof site.selectors?.[field] !== 'string' || site.selectors[field].length > 1000) throw new Error('로그인 요소 설정이 올바르지 않습니다.');
   }
   if(site.selectors.logout!==undefined && (typeof site.selectors.logout!=='string' || site.selectors.logout.length>1000))throw new Error('로그아웃 요소 설정이 올바르지 않습니다.');
-  return {id: site.id || crypto.randomUUID(), origin, loginUrl: url.href, selectors: site.selectors, accounts: site.accounts || [], ...(site.floating?{floating:floatingLayout(site.floating)}:{})};
+  if(site.shareOnLocalhost!==undefined && typeof site.shareOnLocalhost!=='boolean')throw new Error('localhost 공유 설정이 올바르지 않습니다.');
+  return {id: site.id || crypto.randomUUID(), origin, loginUrl: url.href, selectors: site.selectors, accounts: site.accounts || [], ...(site.shareOnLocalhost?{shareOnLocalhost:true}:{}), ...(site.floating?{floating:floatingLayout(site.floating)}:{})};
+}
+// Chrome match patterns without a port cover all ports on this exact hostname.
+export const LOCALHOST_PATTERNS=['http://localhost/*','https://localhost/*'];
+export function sitePatterns(site) {return [...new Set([site.origin+'/*',...(site.shareOnLocalhost?LOCALHOST_PATTERNS:[])])];}
+export function validateSharing(sites) {
+  if(sites.filter(s=>s.shareOnLocalhost).length>1)throw new Error('localhost 공유는 한 도메인에서만 켤 수 있습니다. 기존 도메인의 공유를 먼저 해제하세요.');
+}
+export function siteForPage(sites,value) {
+  const origin=originOf(value),exact=sites.find(s=>s.origin===origin);
+  if(exact)return exact;
+  if(new URL(origin).hostname!=='localhost')return;
+  const shared=sites.filter(s=>s.shareOnLocalhost);if(shared.length!==1)return;
+  const site=shared[0],source=new URL(site.loginUrl),login=new URL(origin);
+  login.pathname=source.pathname;login.search=source.search;login.hash=source.hash;
+  return {...site,origin,loginUrl:login.href};
 }
 export function metadata(site) {
   return {id:site.id, origin:site.origin, selectors:site.selectors, floating:site.floating?floatingLayout(site.floating):{x:1,y:.35,expanded:true}, accounts:site.accounts.map(({id,alias})=>({id,alias}))};

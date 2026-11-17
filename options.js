@@ -1,4 +1,4 @@
-import {originOf} from './core.js';
+import {originOf,sitePatterns} from './core.js';
 import {browserKey} from './vault.js';
 import {MAX_BACKUP_BYTES} from './backup.js';
 const $=id=>document.getElementById(id);
@@ -16,6 +16,7 @@ function selectSite(id) {
   if(!s)$('backup-scope').value='all';$('export-backup').disabled=!sites.length;
   $('account-import').hidden=!s;$('import-file').value='';
   $('site-form').reset();$('site-id').value=s?.id||'';$('origin').value=s?.origin||'';$('login-url').value=s?.loginUrl||'';
+  $('share-localhost').checked=!!s?.shareOnLocalhost;
   for(const field of ['username','password','submit','logout']) $('selector-'+field).value=s?.selectors[field]||'';
   $('site-title').textContent='로그인 화면 설정';$('domain-heading').textContent=s?new URL(s.origin).host:'도메인 추가';$('domain-description').textContent=s?'이 도메인의 계정을 관리합니다.':'로그인 화면에서 확장 아이콘 → 자동 매핑으로 시작할 수 있습니다.';$('account-count').textContent=s?String(s.accounts.length):'';const mapped=s&&['username','password','submit'].every(f=>s.selectors[f]);$('mapping-status').textContent=mapped?'로그인 요소 3개 지정됨':s?'로그인 요소를 지정하세요':'주소와 로그인 요소를 지정하세요';$('login-settings').open=!s||!mapped;$('delete-site').hidden=!s;$('account-section').hidden=!s;
   document.querySelectorAll('[data-pick]').forEach(b=>b.disabled=!s);
@@ -49,11 +50,11 @@ $('site-form').onsubmit=e=>{
   e.preventDefault();
   // Request host permission directly inside the user gesture, before any awaited IPC.
   let origin;try{origin=originOf($('origin').value.trim());}catch(error){notice(error.message,true);return;}
-  const site={id:$('site-id').value,origin,loginUrl:$('login-url').value.trim()||origin,selectors:{}};
+  const site={id:$('site-id').value,origin,loginUrl:$('login-url').value.trim()||origin,selectors:{},shareOnLocalhost:$('share-localhost').checked};
   try{if(new URL(site.loginUrl).origin!==origin)throw new Error('로그인 주소와 허용 도메인이 같아야 합니다.');
     for(const f of ['username','password','submit','logout']){site.selectors[f]=$('selector-'+f).value.trim();if(site.selectors[f])document.querySelector(site.selectors[f]);}
   }catch(error){notice(error.message,true);return;}
-  const permission=chrome.permissions.request({origins:[`${origin}/*`]});
+  const permission=chrome.permissions.request({origins:sitePatterns(site)});
   run(async()=>{if(!(await permission))throw new Error('사이트 접근 권한을 허용해야 사용할 수 있습니다.');const r=await ask({type:'SAVE_SITE',site});await load(r.id);notice('도메인을 저장했습니다. 로그인 요소와 계정을 등록하세요.');});
 };
 $('delete-site').onclick=()=>run(async()=>{if(!confirm('이 도메인과 등록된 계정을 모두 삭제할까요?'))return;await ask({type:'DELETE_SITE',id:selected});await load(null);notice('도메인과 계정을 삭제했습니다.');});

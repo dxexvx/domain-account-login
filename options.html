@@ -26,6 +26,8 @@
 <details id="login-settings" open><summary><span id="site-title">로그인 화면 설정</span><span id="mapping-status">주소와 로그인 요소를 지정하세요</span></summary>
 <form id="site-form"><input id="site-id" type="hidden"><div class="fields"><label>허용 주소<input id="origin" placeholder="https://example.com" required></label><label>로그인 페이지 주소<input id="login-url" type="url" placeholder="https://example.com/login"></label></div>
 <p class="help">정확히 일치하는 도메인에만 적용합니다. 하위 도메인은 따로 등록하세요.</p>
+<label class="localhost-sharing"><input id="share-localhost" type="checkbox" aria-describedby="localhost-help">localhost:*에서 이 도메인의 계정 공유</label>
+<p id="localhost-help" class="help">http·https localhost의 모든 포트에서 같은 계정과 로그인 요소를 사용합니다. 로그인 경로는 유지하고 현재 포트에서 로그인합니다. 공유는 한 도메인에서만 켤 수 있으며, localhost에 따로 등록한 계정이 있으면 그 계정을 우선합니다.</p>
 <div class="selector-row"><label>아이디 입력란<input id="selector-username" placeholder="#username"></label><button type="button" data-pick="username">화면에서 선택</button></div>
 <div class="selector-row"><label>비밀번호 입력란<input id="selector-password" placeholder="#password"></label><button type="button" data-pick="password">화면에서 선택</button></div>
 <div class="selector-row"><label>로그인 버튼<input id="selector-submit" placeholder="button[type=submit]"></label><button type="button" data-pick="submit">화면에서 선택</button></div>
